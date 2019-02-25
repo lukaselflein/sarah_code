@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-""" Search for inital united atom structures, convert them to all atom format.
+""" Minimize the enegy of input structure and extract ESP. 
 Copyright 2019 Simulation Lab
 University of Freiburg
 Author: Lukas Elflein <elfleinl@cs.uni-freiburg.de>
@@ -23,9 +23,12 @@ import numpy as np
 
 
 def parser():
+	"""
+	Parse Command line arguments.
+	"""
 	parser = argparse.ArgumentParser(description='')
-	parser.add_argument('-t', '--trajectory', metavar='ase_pdbH.traj', default='ase_pdbH.traj')
-	parser.add_argument('-r', '--restart', metavar='restart.gpw', default=None)
+	parser.add_argument('-t', '--trajectory', metavar='ase_pdbH.traj', default='ase_pdbH.traj', help='The path to the trajectory file.')
+	parser.add_argument('-r', '--restart', metavar='restart.gpw', default=None, help='The path to a restart file, optional.')
 
 	args = parser.parse_args()
 	traj_file = args.trajectory
@@ -36,21 +39,33 @@ def parser():
 def minimize_energy(traj_file):
 	"""
 	Run a BFGS energy minimization of the smamp molecule in vacuum.
+
+	Args:
+	traj_file: the path to a trajectory file (all atom format)
+
+	Returns:
+	struc: an internal molecular structure object
+	calc: internal calculation object	
 	"""
+
+	# Read in the trajectory file
 	struc = read(traj_file)
+	# Set up the box
 	struc.set_cell([25,25,25])
 	struc.set_pbc([0,0,0])
 	struc.center()
+	# Define gpaw convergence&simulation parameters
 	calc  = GPAW(xc='PBE', h=0.2, charge=0,
 		     spinpol=True, convergence={'energy': 0.001})
-
 	struc.set_calculator(calc)
 	dyn = BFGSLineSearch(struc, trajectory='molecule.traj',
 			     restart='bfgs_ls.pckl', logfile='BFGSLinSearch.log')
+
+	# run the simulation
 	dyn.run(fmax=0.05)
 
 	# Maybe this is useful? Does not seem to be needed.
-	Epot  = struc.get_potential_energy()
+	# Epot  = struc.get_potential_energy()
 
 	# Save everything into a restart file
 	calc.write('restart.gpw', mode='all')
@@ -58,12 +73,17 @@ def minimize_energy(traj_file):
 	return struc, calc
 
 def read_restart(gpw_file):
+	""" Extract the structure and calculation from a restart file."""
 	struc, calc = restart(gpw_file)
 	return struc, calc
 
 def extract(struc, calc):
 	"""
-	Extracts & writes electrostatic potential and densities.
+	Extract & write electrostatic potential and densities.
+	
+	Arg:
+	struc: an internal molecular structure object
+	calc: internal calculation object
 	"""
 	# Extract the ESP
 	esp = calc.get_electrostatic_potential()
@@ -87,15 +107,19 @@ def main():
 	Execute everything.
 	"""
 
-	
+	# Read Command line arguments	
 	traj_file, gpw_file = parser()
 
+	# Check if a restart file was provided
 	if gpw_file is not None:
+		# If we have a restart file, use everything from it
 		struc, calc = read_restart(gpw_file)
 	
+	# Otherwise, we need to optimize based on our input file first.
 	else:
 		struc, calc = minimize_energy(traj_file)
 
+	# Now we can extract ESP, Rho, etc.
 	extract(struc, calc)
 	print('Done.')
 

@@ -25,14 +25,13 @@ import numpy as np
 def parser():
 	parser = argparse.ArgumentParser(description='')
 	parser.add_argument('-t', '--trajectory', metavar='ase_pdbH.traj', default='ase_pdbH.traj')
-	parser.add_argument('-r', '--restart', metavar='ase_pdbH.traj', default='ase_pdbH.traj')
+	parser.add_argument('-r', '--restart', metavar='restart.gpw', default=None)
 
 	args = parser.parse_args()
-	traj_file = args.infile_traj
-	gpw_file  = args.outfile_gpw
-	box       = args.box
+	traj_file = args.trajectory
+	gpw_file = args.restart
 
-	return traj_file, gpw_file, charge, box
+	return traj_file, gpw_file
 
 def minimize_energy(traj_file):
 	"""
@@ -66,8 +65,6 @@ def extract(struc, calc):
 	"""
 	Extracts & writes electrostatic potential and densities.
 	"""
-	# struc, calc = restart(gpw_file)
-
 	# Extract the ESP
 	esp = calc.get_electrostatic_potential()
 
@@ -92,14 +89,15 @@ def main():
 
 	
 	traj_file, gpw_file = parser()
+
 	if gpw_file is not None:
-		struc, calc = read_restart
+		struc, calc = read_restart(gpw_file)
 	
 	else:
-		traj_file = 'ase_pdbH.traj'
 		struc, calc = minimize_energy(traj_file)
 
 	extract(struc, calc)
+	print('Done.')
 
 
 if __name__ == '__main__':
